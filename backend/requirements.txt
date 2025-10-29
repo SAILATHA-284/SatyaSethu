@@ -1,0 +1,11 @@
+Flask==2.3.2
+flask-cors==3.0.10
+werkzeug==2.3.7
+Pillow==10.0.1
+pytesseract==0.3.10
+opencv-python-headless==4.8.1.78
+transformers==4.35.0
+torch>=1.13.0
+requests==2.31.0
+newspaper3k==0.2.8
+python-dotenv==1.0.0
