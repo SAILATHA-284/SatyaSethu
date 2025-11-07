@@ -39,7 +39,7 @@ export default function FakeDetect() {
   };
 
   const headerStyle = {
-    color: "#1a73e8",
+    color: "#0f4391ff",
     fontSize: "1.3rem",
     fontWeight: "600",
     marginBottom: "12px"
@@ -104,16 +104,16 @@ export default function FakeDetect() {
     transform: "translateY(-1px)",
     boxShadow: "0 4px 10px rgba(0,0,0,0.15)"
   };
-
+  
   const resultBoxStyle = {
     marginTop: "12px",
     padding: "12px",
     backgroundColor: "#f1f3f4",
     borderRadius: "8px",
     fontWeight: "500",
-    fontSize: "0.95rem",
+    fontSize: "1.5rem",
     textAlign: "center",
-    boxShadow: "inset 0 1px 4px rgba(0,0,0,0.05)"
+    boxShadow: "inset 0 1px 4px rgba(0,0,0,0.05)",
   };
 
   const imageCardStyle = {
@@ -150,7 +150,7 @@ export default function FakeDetect() {
 
   return (
     <div style={containerStyle}>
-      <h1 style={{ textAlign: "center", color: "#1a73e8", fontSize: "1.9rem", marginBottom: "30px" }}>
+      <h1 style={{ textAlign: "center", color: "#6f4d08ff", fontSize: "1.9rem", marginBottom: "30px" }}>
         Fake News Detection
       </h1>
 
@@ -173,7 +173,14 @@ export default function FakeDetect() {
         >
           Analyze Text
         </button>
-        <div style={resultBoxStyle}>{result || "No result yet"}</div>
+        <div
+  style={{
+    ...resultBoxStyle,
+    color: (result || "").toLowerCase() === "fake" ? "red" : "green"
+  }}
+>
+  {result || "No result yet"}
+</div>
       </div>
 
       {/* IMAGE DETECTION */}

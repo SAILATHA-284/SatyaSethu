@@ -33,7 +33,7 @@ export default function CurrentAffairs() {
     marginBottom: 30,
     fontSize: "2rem",
     fontWeight: "bold",
-    color: "#000f72ff",
+    color: "#78490fff",
   };
 
   const loadingStyle = {

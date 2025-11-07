@@ -54,7 +54,7 @@ export default function LandingPage() {
         style={{
           fontFamily: "Playfair Display, serif",
           fontSize: "3.2rem",
-          color: "#0b3d91",
+          color: "#623804ff",
           marginBottom: "10px",
         }}
       >
@@ -76,6 +76,8 @@ export default function LandingPage() {
       {/* Keep your original home welcome text */}
       <div
         style={{
+          fontFamily: "Playfair Display, serif",
+          fontSize: "1.2rem",
           background: "rgba(255,255,255,0.85)",
           padding: "25px",
           borderRadius: "12px",
@@ -84,12 +86,12 @@ export default function LandingPage() {
           boxShadow: "0 6px 15px rgba(0,0,0,0.15)",
         }}
       >
-        <h2 style={{ color: "#0b3d91" }}>Welcome to Satya Setu</h2>
+        <h2 style={{ color: "#91620bff" }}>Welcome to Satya Setu</h2>
         <p style={{ fontSize: "1.05rem", lineHeight: "1.6", color: "#333" }}>
           Discover the truth behind news articles, scan documents effortlessly,
           and stay updated with the latest current affairs.
         </p>
-        <p style={{ marginTop: "10px", color: "#0b3d91", fontWeight: "600" }}>
+        <p style={{ marginTop: "10px", color: "#91590bff", fontWeight: "600" }}>
           Choose a service to begin ↓
         </p>
       </div>
@@ -97,7 +99,7 @@ export default function LandingPage() {
       {/* 2x2 button layout */}
       <div style={gridContainer}>
         <button
-          style={{ ...buttonStyle, backgroundColor: "#e3f2fd" }}
+          style={{ ...buttonStyle, backgroundColor: "#ddd889ff" }}
           onMouseEnter={handleHover}
           onMouseLeave={handleLeave}
           onClick={() => navigate("/detect")}
@@ -106,7 +108,7 @@ export default function LandingPage() {
         </button>
 
         <button
-          style={{ ...buttonStyle, backgroundColor: "#f3e5f5" }}
+          style={{ ...buttonStyle, backgroundColor: "#7db7ccff" }}
           onMouseEnter={handleHover}
           onMouseLeave={handleLeave}
           onClick={() => navigate("/ocr")}
@@ -115,7 +117,7 @@ export default function LandingPage() {
         </button>
 
         <button
-          style={{ ...buttonStyle, backgroundColor: "#fdecea" }}
+          style={{ ...buttonStyle, backgroundColor: "#eabe80ff" }}
           onMouseEnter={handleHover}
           onMouseLeave={handleLeave}
           onClick={() => navigate("/url-check")}
@@ -124,7 +126,7 @@ export default function LandingPage() {
         </button>
 
         <button
-          style={{ ...buttonStyle, backgroundColor: "#e8f5e9" }}
+          style={{ ...buttonStyle, backgroundColor: "rgba(239, 147, 147, 1)" }}
           onMouseEnter={handleHover}
           onMouseLeave={handleLeave}
           onClick={() => navigate("/news")}

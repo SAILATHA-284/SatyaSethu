@@ -37,7 +37,7 @@ const URLChecker = () => {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "50vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -59,7 +59,7 @@ const URLChecker = () => {
         <h2
           style={{
             textAlign: "center",
-            color: "#2c3e50",
+            color: "#60390cff",
             marginBottom: "20px",
           }}
         >

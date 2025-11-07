@@ -5,7 +5,17 @@ import re
 import requests
 from typing import Dict, List
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk import word_tokenize, pos_tag
 
+# Ensure resources are available
+nltk.download('punkt', quiet=True)
+nltk.download('wordnet', quiet=True)
+nltk.download('stopwords', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
 # ----------------------
 # Configuration
 # ----------------------
@@ -14,7 +24,7 @@ DEFAULT_MODEL = os.environ.get(
     "hamzab/roberta-fake-news-classification"
 )
 NEWS_API_KEY = os.environ.get("NEWSAPI_KEY")
-GNEWS_API_KEY = os.environ.get("GNEWS_API_KEY")
+GNEWS_API_KEY = os.environ.get("GNEWSAPI_KEY")
 
 TRUSTED_SOURCES = {
     'reuters.com', 'apnews.com', 'bbc.com', 'bbc.co.uk',
@@ -24,7 +34,9 @@ TRUSTED_SOURCES = {
     'cbsnews.com', 'abcnews.go.com', 'usatoday.com',
     'time.com', 'newsweek.com', 'politico.com', 'axios.com',
     'thehill.com', 'propublica.org', 'latimes.com',
-    'aljazeera.com', 'dw.com', 'france24.com'
+    'aljazeera.com', 'dw.com', 'france24.com', 'timesnownews.com',
+    'timesofindia.indiatimes.com','indianexpress.com', 'firstpost.com','altnews.in',
+    'ddnews.gov.in','msn.com'
 }
 
 classifier = None
@@ -59,22 +71,64 @@ def preprocess_text(text: str) -> str:
     return text
 
 def extract_keywords(text: str) -> str:
-    """Extract proper nouns & named entities as keywords for API search"""
-    sentences = re.split(r'[.!?]+', text)
+    """
+    Extracts meaningful keywords from text using NLTK.
+    If text is short (≤15 words), uses full text directly.
+    Otherwise, extracts top noun phrases and entities for news search.
+    """
+    text = text.strip()
+    words = word_tokenize(text)
+    if len(words) <= 15:
+        # For short input (like one-sentence claims), use entire text
+        return text
+
+    stop_words = set(stopwords.words('english'))
+    lemmatizer = WordNetLemmatizer()
+
+    # POS tagging to identify nouns and proper nouns
+    tagged = pos_tag(words)
     keywords = []
-    for s in sentences:
-        words = s.split()
-        for i, w in enumerate(words):
-            if re.match(r'[A-Z][a-z]+', w):
-                keywords.append(w)
-            if i+1 < len(words) and re.match(r'[A-Z][a-z]+', words[i+1]):
-                keywords.append(f"{w} {words[i+1]}")
-    return " AND ".join(list(set(keywords))[:5])
+    for word, tag in tagged:
+        word_lower = word.lower()
+        if word_lower.isalpha() and word_lower not in stop_words:
+            # Nouns and proper nouns are prioritized
+            if tag.startswith('NN') or tag.startswith('JJ'):
+                keywords.append(lemmatizer.lemmatize(word_lower))
+
+    # Deduplicate & limit to 5–7 most relevant keywords
+    unique_keywords = list(dict.fromkeys(keywords))[:7]
+    if not unique_keywords:
+        return text  # fallback if nothing extracted
+
+    # Build logical AND query for better search relevance
+    return " AND ".join(unique_keywords)
+
+# ----------------------
+# Relevance Checking
+# ----------------------
+def is_article_relevant(article, query, text):
+    """
+    Checks if an article is contextually relevant to the input query/text.
+    Uses keyword overlap and fuzzy text similarity.
+    """
+    title = (article.get("title") or "").lower()
+    desc = (article.get("description") or "").lower()
+    content = (article.get("content") or "").lower()
+    combined = " ".join([title, desc, content])
+
+    query = query.lower()
+    text = text.lower()
+
+    overlap = sum(1 for w in query.split() if w in combined)
+    ratio = SequenceMatcher(None, text, combined).ratio()
+
+    # At least 2 keyword overlaps or >0.45 similarity means it's relevant
+    return overlap >= 2 or ratio > 0.45
 
 # ----------------------
 # NewsAPI & GNews Search
 # ----------------------
-def search_newsapi(query: str) -> Dict:
+def search_newsapi(query: str, full_text: str) -> Dict:
     if not NEWS_API_KEY:
         return {"found": False, "sources": [], "note": "No NewsAPI key"}
     from_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -92,18 +146,22 @@ def search_newsapi(query: str) -> Dict:
         data = response.json()
         articles = data.get('articles', [])
         trusted_articles = [a for a in articles if any(domain in a.get('url', '') for domain in TRUSTED_SOURCES)]
-        if trusted_articles:
+
+        # Filter only relevant ones
+        relevant_articles = [a for a in trusted_articles if is_article_relevant(a, query, full_text)]
+
+        if relevant_articles:
             return {
                 "found": True,
-                "count": len(trusted_articles),
+                "count": len(relevant_articles),
                 "sources": [{"title": a.get('title', ''), "source": a.get('source', {}).get('name', ''),
-                             "url": a.get('url', ''), "published": a.get('publishedAt', '')} for a in trusted_articles[:5]]
+                             "url": a.get('url', ''), "published": a.get('publishedAt', '')} for a in relevant_articles[:5]]
             }
-        return {"found": False, "sources": [], "note": "No trusted articles found"}
+        return {"found": False, "sources": [], "note": "No relevant trusted articles found"}
     except Exception as e:
         return {"found": False, "sources": [], "note": f"NewsAPI request failed: {str(e)}"}
 
-def search_gnews(query: str) -> Dict:
+def search_gnews(query: str, full_text: str) -> Dict:
     if not GNEWS_API_KEY:
         return {"found": False, "sources": [], "note": "No GNews API key"}
     url = "https://gnews.io/api/v4/search"
@@ -118,14 +176,17 @@ def search_gnews(query: str) -> Dict:
         data = response.json()
         articles = data.get('articles', [])
         trusted_articles = [a for a in articles if any(domain in a.get('url', '') for domain in TRUSTED_SOURCES)]
-        if trusted_articles:
+
+        relevant_articles = [a for a in trusted_articles if is_article_relevant(a, query, full_text)]
+
+        if relevant_articles:
             return {
                 "found": True,
-                "count": len(trusted_articles),
+                "count": len(relevant_articles),
                 "sources": [{"title": a.get('title', ''), "source": a.get('source', {}).get('name', ''),
-                             "url": a.get('url', ''), "published": a.get('publishedAt', '')} for a in trusted_articles[:5]]
+                             "url": a.get('url', ''), "published": a.get('publishedAt', '')} for a in relevant_articles[:5]]
             }
-        return {"found": False, "sources": [], "note": "No trusted articles found"}
+        return {"found": False, "sources": [], "note": "No relevant trusted articles found"}
     except Exception as e:
         return {"found": False, "sources": [], "note": f"GNews request failed: {str(e)}"}
 
@@ -137,28 +198,28 @@ def verify_with_trusted_sources(text: str) -> Dict:
     total_sources = 0
     verification_details = []
 
-    news_result = search_newsapi(query)
+    news_result = search_newsapi(query, text)
     if news_result.get("found"):
         total_sources += news_result.get("count", 0)
         verification_details.append({"query": query, "sources_found": news_result.get("count", 0), "top_sources": news_result.get("sources", [])[:2]})
 
     if total_sources < 2:
-        gnews_result = search_gnews(query)
+        gnews_result = search_gnews(query, text)
         if gnews_result.get("found"):
             total_sources += gnews_result.get("count", 0)
             verification_details.append({"query": query, "sources_found": gnews_result.get("count", 0), "top_sources": gnews_result.get("sources", [])[:2]})
 
     if total_sources >= 3:
-        return {"verified": True, "confidence": min(0.7 + total_sources*0.05, 0.95),
-                "reason": f"Corroborated by {total_sources} trusted sources",
+        return {"verified": True, "confidence": min(0.6 + total_sources*0.05, 0.9),
+                "reason": f"Corroborated by {total_sources} relevant trusted sources",
                 "trusted_sources_found": total_sources, "verification_details": verification_details}
     elif total_sources >= 1:
         return {"verified": True, "confidence": 0.6,
-                "reason": f"Partially verified by {total_sources} source(s)",
+                "reason": f"Partially verified by {total_sources} relevant source(s)",
                 "trusted_sources_found": total_sources, "verification_details": verification_details}
     else:
-        return {"verified": False, "confidence": 0.5,
-                "reason": "No trusted sources found", "trusted_sources_found": 0}
+        return {"verified": False, "confidence": 0.4,
+                "reason": "No relevant trusted sources found", "trusted_sources_found": 0}
 
 # ----------------------
 # Content Features & Authenticity
@@ -183,7 +244,7 @@ def calculate_authenticity_score(model_score: float, verification_result: Dict) 
     elif verified_sources >= 1:
         return model_score*0.5 + verification_confidence*0.5
     else:
-        return model_score*0.7  # softer penalization
+        return model_score*0.7
 
 # ----------------------
 # Main Classification
@@ -191,11 +252,9 @@ def calculate_authenticity_score(model_score: float, verification_result: Dict) 
 def classify_text(text: str, return_details: bool = False) -> Dict:
     processed_text = preprocess_text(text)
 
-    # 1️⃣ Verification first
     verification_result = verify_with_trusted_sources(processed_text)
     verified_sources = verification_result.get("trusted_sources_found", 0)
 
-    # 2️⃣ Model prediction
     clf = get_classifier()
     if clf:
         try:
@@ -206,13 +265,13 @@ def classify_text(text: str, return_details: bool = False) -> Dict:
 
             authenticity_score = calculate_authenticity_score(raw_score, verification_result)
 
-            # Final prediction logic
             if prediction == "FAKE":
-                final_prediction = "FAKE"
-            elif prediction == "REAL":
-                if verified_sources >= 2:
+                if verified_sources >= 3 and authenticity_score > 0.85:
                     final_prediction = "REAL"
-                elif authenticity_score >= 0.7:
+                else:
+                    final_prediction = "FAKE"
+            elif prediction == "REAL":
+                if verified_sources >= 2 or authenticity_score >= 0.7:
                     final_prediction = "REAL"
                 else:
                     final_prediction = "FAKE"
@@ -238,10 +297,9 @@ def classify_text(text: str, return_details: bool = False) -> Dict:
         except Exception as e:
             print(f"Classification error: {e}")
 
-    # Fallback
     return {
         "prediction": "UNCERTAIN",
-        "score": verification_result.get("confidence", 0.5),
+        "score": verification_result.get("confidence", 0.4),
         "source_verification": verification_result,
         "note": "Model unavailable"
     }
