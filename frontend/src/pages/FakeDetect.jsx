@@ -7,6 +7,29 @@ export default function FakeDetect() {
   const [file, setFile] = useState(null);
   const [imageResults, setImageResults] = useState([]);
   const [uploadedUrl, setUploadedUrl] = useState("");
+    const [listening, setListening] = useState(false);
+
+  const handleVoiceInput = () => {
+    if (!("webkitSpeechRecognition" in window)) {
+      alert("Speech recognition not supported in this browser");
+      return;
+    }
+    const recognition = new window.webkitSpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setText(prev => (prev ? prev + " " + transcript : transcript));
+    };
+
+    recognition.start();
+  };
 
   const handleTextSubmit = async () => {
     if (!text) return;
@@ -164,6 +187,22 @@ export default function FakeDetect() {
           style={textareaStyle}
           placeholder="Paste your text here..."
         />
+        <button
+  onClick={handleVoiceInput}
+  style={{
+    marginLeft: "10px",
+    backgroundColor: listening ? "#f87171" : "#10b981",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    padding: "8px 15px",
+    cursor: "pointer",
+    fontWeight: "500"
+  }}
+>
+  {listening ? "🎙 Listening..." : "🎤 Speak"}
+</button>
+
         <br />
         <button
           style={buttonStyle}
