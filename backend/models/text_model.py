@@ -39,6 +39,8 @@ TRUSTED_SOURCES = {
     'ddnews.gov.in','msn.com'
 }
 
+NEGATIONS = {"not", "no", "never", "none", "cannot", "can't", "don't", "doesn't", "isn't", "wasn't", "won't", "shouldn't", "couldn't", "didn't"}
+
 classifier = None
 tokenizer = None
 model = None
@@ -247,10 +249,19 @@ def calculate_authenticity_score(model_score: float, verification_result: Dict) 
         return model_score*0.7
 
 # ----------------------
+# Negation Handling
+# ----------------------
+def remove_negations(text: str) -> (str, bool):
+    words = text.split()
+    negation_present = any(word.lower() in NEGATIONS for word in words)
+    filtered_words = [word for word in words if word.lower() not in NEGATIONS]
+    return " ".join(filtered_words), negation_present
+
+# ----------------------
 # Main Classification
 # ----------------------
 def classify_text(text: str, return_details: bool = False) -> Dict:
-    processed_text = preprocess_text(text)
+    processed_text, negation_present = remove_negations(preprocess_text(text))
 
     verification_result = verify_with_trusted_sources(processed_text)
     verified_sources = verification_result.get("trusted_sources_found", 0)
@@ -271,12 +282,19 @@ def classify_text(text: str, return_details: bool = False) -> Dict:
                 else:
                     final_prediction = "FAKE"
             elif prediction == "REAL":
-                if verified_sources >= 2 or authenticity_score >= 0.7:
+                if verified_sources >= 2 or authenticity_score >= 0.6999:
                     final_prediction = "REAL"
                 else:
                     final_prediction = "FAKE"
             else:
                 final_prediction = "UNCERTAIN"
+
+            # Flip prediction if negation detected
+            if negation_present:
+                if final_prediction == "FAKE":
+                    final_prediction = "REAL"
+                elif final_prediction == "REAL":
+                    final_prediction = "FAKE"
 
             confidence_level = "high" if authenticity_score > 0.85 else "medium" if authenticity_score >= 0.55 else "low"
 
@@ -292,6 +310,9 @@ def classify_text(text: str, return_details: bool = False) -> Dict:
             if return_details:
                 result_dict["content_quality"] = extract_content_features(processed_text)
                 result_dict["verification_details"] = verification_result.get("verification_details", [])
+
+            if negation_present:
+                result_dict["note"] = result_dict.get("note", "") + " | Negation detected and prediction flipped"
 
             return result_dict
         except Exception as e:
